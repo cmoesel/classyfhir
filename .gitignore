@@ -1,0 +1,6 @@
+/.vscode
+/.project
+/node_modules
+/src/generated
+/lib
+yarn-error.log
