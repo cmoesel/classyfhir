@@ -1,3 +1,5 @@
+const prettier = require('prettier');
+
 /**
  * A class to assist with generating code, managing indents, blocks, and comments.
  */
@@ -77,7 +79,8 @@ module.exports = class CodeWriter {
   /**
    * Produces the string representing the generated code
    */
-  toString() {
-    return `${this._lines.join('\n')}\n`;
+  toString(pretty = true) {
+    const str = `${this._lines.join('\n')}\n`;
+    return prettier.format(str, { singleQuote: true, parser: 'babel' });
   }
 };

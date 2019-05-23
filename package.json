@@ -1,12 +1,12 @@
 {
-  "name": "fhir-objects",
+  "name": "classyfhir",
   "version": "0.0.1",
   "description": "",
   "author": "",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git@github.com:standardhealth/fhir-objects.git"
+    "url": "git@github.com:cmoesel/classyfhir.git"
   },
   "main": "./lib/index.js",
   "scripts": {
@@ -28,7 +28,9 @@
     "cql-execution": "^1.2.0",
     "eslint": "^3.6.1",
     "fs-extra": "^7.0.1",
-    "mocha": "^3.2.0"
+    "mocha": "^3.2.0",
+    "prettier": "^1.17.1",
+    "reserved-words": "^0.1.2"
   },
   "peerDependencies": {}
 }

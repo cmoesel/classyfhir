@@ -1,5 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
+const reserved = require('reserved-words');
+const prettier = require('prettier');
 const load = require('./load');
 const CodeWriter = require('./CodeWriter');
 
@@ -12,8 +14,11 @@ function generate() {
 function generateDSTU2() {
   const genPath = path.join(__dirname, 'generated', 'dstu2');
   fs.mkdirpSync(genPath);
+
   // Copy over handwritten files
-  fs.copyFileSync(path.join(__dirname, 'BaseInstance.js'), path.join(genPath, 'BaseInstance.js'));
+  const baseInstance = fs.readFileSync(path.join(__dirname, 'BaseInstance.js'), { encoding: 'utf8'});
+  fs.writeFileSync(path.join(genPath, 'BaseInstance.js'), prettier.format(baseInstance, { singleQuote: true, parser: 'babel' }));
+
   // NOTE: Currently only generating the resources (no extensions, datatypes, or profiles)
   for (const resource of DSTU2_DEFS.resources) {
     generateDSTU2StructDef(resource);
@@ -102,7 +107,11 @@ function getClassNameFromURL(url) {
 
 function tokenize(str, pascalCase = false) {
   const pascal = str.replace(/\[x\]$/, '').split(/[^A-Za-z0-9]/).map(upperFirst).join('');
-  return pascalCase ? pascal : lowerFirst(pascal);
+  let token = pascalCase ? pascal : lowerFirst(pascal);
+  if (reserved.check(token, 'es2015', true)) {
+    token = `${token}_`;
+  }
+  return token;
 }
 
 function lowerFirst(str) {
