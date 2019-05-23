@@ -1,1 +1,1 @@
-module.exports = require('./BaseStructureDefinition');
+module.exports = require('./BaseInstance');

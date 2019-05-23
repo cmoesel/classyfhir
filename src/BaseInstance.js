@@ -1,6 +1,6 @@
 const fhirpath = require('fhirpath');
 
-class BaseStructureDefinition {
+class BaseInstance {
   /**
    * Base constructor intended to be invoked by subclasses.
    * @param {Object} json - a JSON instance of a FHIR StructureDefinition
@@ -44,4 +44,4 @@ class BaseStructureDefinition {
   }
 }
 
-module.exports = BaseStructureDefinition;
+module.exports = BaseInstance;
