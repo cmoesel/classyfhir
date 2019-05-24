@@ -4,13 +4,20 @@ const reserved = require('reserved-words');
 const prettier = require('prettier');
 const load = require('./load');
 const CodeWriter = require('./CodeWriter');
+const {Klass, Property} = require('./class-models');
 
 const DSTU2_DEFS = load('dstu2');
 
+/**
+ * Generate ES6 classes from FHIR definitions.
+ */
 function generate() {
   generateDSTU2();
 }
 
+/**
+ * Generate ES6 classes from FHIR DSTU2 definitions
+ */
 function generateDSTU2() {
   const genPath = path.join(__dirname, 'generated', 'dstu2');
   fs.mkdirpSync(genPath);
@@ -21,90 +28,123 @@ function generateDSTU2() {
 
   // NOTE: Currently only generating the resources (no extensions, datatypes, or profiles)
   for (const resource of DSTU2_DEFS.resources) {
-    generateDSTU2StructDef(resource);
+    const klass = buildKlass(resource);
+    generateKlass(klass);
   }
 }
 
-function generateDSTU2StructDef(resource) {
-  const cw = new CodeWriter();
-  const clazzName = getClassName(resource.id);
-  const superClass = resource.base ? getClassNameFromURL(resource.base) : 'BaseInstance';
-  cw.ln(`import ${superClass} from '${superClass}';`).ln();
-
-  cw.blComment(() => {
-    if (resource.description && resource.description.trim().length > 0) {
-      cw.ln(resource.description).ln();
-    }
-    cw.ln(`This class was generated from the FHIR DSTU2 ${resource.id} StructureDefinition.`).ln();
-    cw.ln(`@extends ${superClass}`);
-  });
-  cw.bl(`class ${clazzName} extends ${superClass}`, () => {
-    generateDSTU2ClassBody(resource, cw);
-  });
-  cw.ln().ln(`export default ${clazzName};`);
-  fs.writeFileSync(path.join(__dirname, 'generated', 'dstu2', `${clazzName}.js`), cw.toString());
-}
-
-function generateDSTU2ClassBody(resource, cw) {
-  const resourceType = resource.snapshot.element[0].path;
-  cw.ln().bl(`constructor(json = { resourceType: '${resourceType}' })`, () => {
-    cw.ln('super(json);');
-  });
-
+/**
+ * Builds a representation of the class to generate
+ * @param {Object} resource - a StructureDefinition JSON object to generate a class for
+ */
+function buildKlass(resource) {
+  const klass = new Klass(getClassName(resource.id));
+  klass.fhirName = resource.id;
+  klass.resourceType = resource.snapshot.element[0].path;
+  klass.superKlass = resource.base ? getClassNameFromURL(resource.base) : 'BaseInstance';
+  if (resource.description && resource.description.trim().length > 0) {
+    klass.description = resource.description;
+  }
   for (const el of resource.differential.element) {
-    // Only generate for the top-level paths in the differential
-    // TODO: support friendly approaches to slicing
-    // TODO: support toFHIR()
-    // TODO: support validation (?)
-    const relativePath = el.path.slice(resourceType.length+1);
+    const relativePath = el.path.slice(klass.resourceType.length+1);
     if (relativePath.length > 0 && relativePath.indexOf('.') === -1) {
-      cw.ln();
-      generateDSTU2Accessor(relativePath, el, cw);
+      const property = new Property(tokenize(relativePath));
+      property.fhirName = relativePath;
+      klass.properties.push(property);
     }
   }
+  return klass;
 }
 
-function generateDSTU2Accessor(name, el, cw) {
-  // TODO: Proper support of class instances
-  // TODO: Detection of cardinality (array or not)
-  // TODO: Support for choice
-  // TODO: Type validation (?)
-  const nameToken = tokenize(name);
+/**
+ * Generates the ES6 class for the given class representation
+ * @param {Klass} klass - the class to generate an ES6 class for
+ */
+function generateKlass(klass) {
+  const cw = new CodeWriter();
+  cw.ln(`import ${klass.superKlass} from '${klass.superKlass}';`).ln();
+
   cw.blComment(() => {
-    cw.ln(`Get the ${name}.`);
+    if (klass.description) {
+      cw.ln(klass.description).ln();
+    }
+    cw.ln(`This class was generated from the FHIR DSTU2 ${klass.fhirName} StructureDefinition.`).ln();
+    cw.ln(`@extends ${klass.superKlass}`);
+  });
+  cw.bl(`class ${klass.name} extends ${klass.superKlass}`, () => {
+    cw.blComment(() => {
+      cw.ln(`Builds a ${klass.name} representing an instance of a FHIR DSTU2 ${klass.fhirName}.`);
+      cw.ln(`@param {Object} [json] - JSON instance of a FHIR DSTU2 ${klass.fhirName}`);
+    });
+    cw.ln().bl(`constructor(json = { resourceType: '${klass.resourceType}' })`, () => {
+      cw.ln('super(json);');
+    });
+    cw.ln();
+    klass.properties.forEach(p => generateAccessors(p, cw));
+  });
+  cw.ln().ln(`export default ${klass.name};`);
+  fs.writeFileSync(path.join(__dirname, 'generated', 'dstu2', `${klass.name}.js`), cw.toString());
+}
+
+/**
+ * Generates the ES6 accessors for the property representation
+ * @param {Property} property
+ * @param {CodeWriter} cw
+ */
+function generateAccessors(property, cw) {
+  cw.blComment(() => {
+    cw.ln(`Get the ${property.fhirName}.`);
     cw.ln('TODO: Return class instances of data');
     cw.ln(`@returns {*}`);
   });
-  cw.bl(`get ${nameToken}()`, () => {
-    if (/\[x\]$/.test(name)) {
+  cw.bl(`get ${property.name}()`, () => {
+    if (/\[x\]$/.test(property.fhirName)) {
       cw.ln('// TODO: Proper support for choices');
     }
-    cw.ln(`return this._json['${name}'];`);
+    cw.ln(`return this._json['${property.fhirName}'];`);
   });
   cw.ln();
 
   cw.blComment(() => {
-    cw.ln(`Set the ${name}.`);
+    cw.ln(`Set the ${property.fhirName}.`);
     cw.ln('TODO: Set class instances of data');
-    cw.ln(`@param {*} ${name}`);
+    cw.ln(`@param {*} ${property.name}`);
   });
-  cw.bl(`set ${nameToken}(${nameToken})`, () => {
-    if (/\[x\]$/.test(name)) {
+  cw.bl(`set ${property.name}(${property.name})`, () => {
+    if (/\[x\]$/.test(property.fhirName)) {
       cw.ln('// TODO: Proper support for choices');
     }
-    cw.ln(`this._json['${name}'] = ${nameToken};`);
+    cw.ln(`this._json['${property.fhirName}'] = ${property.name};`);
   });
   cw.ln();
 }
 
+/**
+ * Gets a class name from a FHIR type name.  This will remove invalid characters
+ * and ensure the first letter is capitalized.
+ * @param {string} name - the name of the FHIR type
+ * @returns {string} the class name
+ */
 function getClassName(name) {
   return tokenize(name, true);
 }
 
+/**
+ * Gets a class name from a FHIR URL.  This will remove invalid characters
+ * and ensure the first letter is capitalized.
+ * @param {string} url - the canonical URL for the FHIR type
+ * @returns {string} the class name
+ */
 function getClassNameFromURL(url) {
   return getClassName(url.slice(url.lastIndexOf('/')+1));
 }
 
+/**
+ * Gets a tokenized version of the string converted to camel-case (or pascal-case)
+ * @param {string} str - the string to tokenize
+ * @param {boolean} [pascalCase=false] - indicates if the token should be pascal-case
+ * @returns {string} the token
+ */
 function tokenize(str, pascalCase = false) {
   const pascal = str.replace(/\[x\]$/, '').split(/[^A-Za-z0-9]/).map(upperFirst).join('');
   let token = pascalCase ? pascal : lowerFirst(pascal);
@@ -114,6 +154,11 @@ function tokenize(str, pascalCase = false) {
   return token;
 }
 
+/**
+ * Lowercases the first letter of a string
+ * @param {string} str - the string to lowercase the first letter for
+ * @returns {string} with the first letter lowercased
+ */
 function lowerFirst(str) {
   if (str.length === 0) {
     return str;
@@ -121,6 +166,11 @@ function lowerFirst(str) {
   return str[0].toLowerCase() + str.slice(1);
 }
 
+/**
+ * Uppercases the first letter of a string
+ * @param {string} str - the string to uppercase the first letter for
+ * @returns {string} with the first letter uppercased
+ */
 function upperFirst(str) {
   if (str.length === 0) {
     return str;

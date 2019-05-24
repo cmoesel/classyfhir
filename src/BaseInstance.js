@@ -1,16 +1,19 @@
 const fhirpath = require('fhirpath');
 
+/**
+ * A base instance of any FHIR-based class, with helpful methods for manipulating the data.
+ */
 class BaseInstance {
   /**
    * Base constructor intended to be invoked by subclasses.
-   * @param {Object} json - a JSON instance of a FHIR StructureDefinition
+   * @param {Object} json - a JSON instance of FHIR data
    */
   constructor(json = {}) {
     this._json = json;
   }
 
   /**
-   * Evaluates a FHIRPath expression against the structure definition
+   * Evaluates a FHIRPath expression against the FHIR data
    * @param {string} path - the path to evaluate
    * @param {Object} context - the context containing environment variables
    * @returns {*} the result of the FHIRPath expression
